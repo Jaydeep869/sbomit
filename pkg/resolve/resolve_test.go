@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"github.com/sbomit/sbomit/pkg/attestation"
 )
 
 func TestResolveFromFile(t *testing.T) {
@@ -44,6 +45,76 @@ func TestResolveFromFile(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveOrjsonWitness(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "test", "orjson_witness.json"))
+	if err != nil {
+		t.Fatalf("failed to read test attestation: %v", err)
+	}
+
+	result, err := Resolve(data, Options{})
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+
+	if len(result.Packages) != 89 {
+		t.Errorf("expected 89 packages, got %d", len(result.Packages))
+	}
+	if len(result.Files) != 625 {
+		t.Errorf("expected 625 files, got %d", len(result.Files))
+	}
+}
+
+func TestResolveAttestationsDirect(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "test", "sample-attestation.json"))
+	if err != nil {
+		t.Fatalf("failed to read test attestation: %v", err)
+	}
+
+	attestations, err := attestation.ParseWitnessData(data, nil)
+	if err != nil {
+		t.Fatalf("failed to parse witness data: %v", err)
+	}
+
+	resultFromBytes, err := Resolve(data, Options{})
+	if err != nil {
+		t.Fatalf("Resolve failed: %v", err)
+	}
+
+	resultFromParsed, err := ResolveAttestations(attestations, Options{})
+	if err != nil {
+		t.Fatalf("ResolveAttestations failed: %v", err)
+	}
+
+	if len(resultFromBytes.Packages) != len(resultFromParsed.Packages) {
+		t.Errorf("package count mismatch: Resolve=%d vs ResolveAttestations=%d",
+			len(resultFromBytes.Packages), len(resultFromParsed.Packages))
+	}
+	if len(resultFromBytes.Files) != len(resultFromParsed.Files) {
+		t.Errorf("file count mismatch: Resolve=%d vs ResolveAttestations=%d",
+			len(resultFromBytes.Files), len(resultFromParsed.Files))
+	}
+}
+
+func BenchmarkResolve(b *testing.B) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "test", "sample-attestation.json"))
+	if err != nil {
+		b.Fatalf("failed to read test attestation: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := Resolve(data, Options{})
+		if err != nil {
+			b.Fatalf("Resolve failed: %v", err)
+		}
+	}
+}
+
 
 func TestResolvePackageIDStability(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "test", "sample-attestation.json"))
